@@ -10,6 +10,7 @@ TASK_COLLECTION = 'tasks'
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_MAP = 'monitorspider:url'
+EXTRA_MAP = 'monitorspider:extra'
 SPIDER = 'monitorspider'
 
 
@@ -22,6 +23,7 @@ class MonitorCronJob(object):
 		self.redis_host = REDIS_HOST
 		self.redis_port = REDIS_PORT
 		self.rmap = REDIS_MAP
+		self.emap = EXTRA_MAP
 		self.ulist = '%s:start_urls' % SPIDER
 		self.dupefilter_key = '%s:dupefilter' % SPIDER
 
@@ -54,6 +56,8 @@ class MonitorCronJob(object):
 	def _cleanRedis(self):
 		self.r.delete( self.rmap )
 		print "[log] Clean url hash map of %s" % self.rmap
+		self.r.delete( self.emap )
+		print "[log] Clean extra url hash map of %s" % self.emap
 		self.r.delete( self.dupefilter_key )
 		print "[log] Clean dupefilter_key of %s" % self.dupefilter_key
 
@@ -99,12 +103,16 @@ class MonitorCronJob(object):
 		for i in tasks:
 			sku = i.get('sku', None)
 			urls = i.get('urls', None)
-			if sku and urls:
+			extras = i.get('extras', None)
+			if sku:
 				for url in urls:
 					self.r.hset( self.rmap, url, sku ) # hset(hash, key, value)
-					print "[log] Hashed (%s, %s)" % (url, sku)
 					to_redis( url )
 					print "[log] List %s to %s" % (url, self.ulist)
+				for extra in extras:
+					self.r.hset( self.rmap, extra, sku )
+					to_redis( extra )
+					print "[log] List %s to %s" % (extra, self.ulist)
 
 
 	def test(self):

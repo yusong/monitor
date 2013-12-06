@@ -21,6 +21,7 @@ SCHEDULER_QUEUE_CLASS = "scrapy_redis.queue.SpiderQueue"
 #SCHEDULER_QUEUE_CLASS = "scrapy_redis.queue.SpiderStack"
 
 ITEM_PIPELINES = [
+	# 'monitor.pipelines.TestMongoPipeline',
 	'monitor.pipelines.MongoPipeline',
 ]
 

@@ -2,10 +2,11 @@
 import re
 import json
 from scrapy.spider import BaseSpider
+from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.selector import Selector
 from scrapy.http import Request
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
-from scrapy_redis.spiders import RedisSpider
+from scrapy_redis.spiders import RedisSpider, RedisMixin
 
 from monitor.items import ProductItem
 
@@ -13,8 +14,11 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+
+class MonitorSpider(RedisMixin, CrawlSpider):
+# class MonitorSpider( CrawlSpider ):
 # class MonitorSpider(BaseSpider):
-class MonitorSpider(RedisSpider):
+# class MonitorSpider(RedisSpider):
 
 	name = "monitorspider"
 	redis_key = 'monitorspider:start_urls'
@@ -26,25 +30,54 @@ class MonitorSpider(RedisSpider):
 	start_urls = [
 		# 'http://item.jd.com/567572.html',
 		# 'http://detail.tmall.com/item.htm?id=12830475888',
-		# 'http://item.feifei.com/A3706268.html'
+		# 'http://list.tmall.com/search_product.htm?cat=50916011',
+		# 'http://item.feifei.com/A3706268.html',
+		# 'http://list.tmall.com//search_product.htm?q=%C3%E6%B0%FC%BB%FA',
 	]
 
 	pipeline = [ 'MongoPipeline' ]
 
+	rules = (
 
-	def parse(self, response):
+		Rule(   SgmlLinkExtractor(  allow=(r'detail.tmall.com'),
+		                            restrict_xpaths=("//div[@id='J_ItemList']//p[@class='productTitle']"),
+		                            unique=True),
+		        callback='parseTmall', ),
+
+		Rule(   SgmlLinkExtractor(  allow=(r'list.tmall.com'),
+		                            restrict_xpaths=("//a[@class='ui-page-s-next']"),
+		                            unique=True), 
+		        follow=True ),
+
+	)
+
+
+	def parse_start_url(self, response):
 		""" Main parse function
 		"""
 		url = response.url
 
-		if url.find( 'tmall.com' ) > -1:
+		if url.find( 'detail.tmall.com' ) > -1:
 			return self.parseTmall( response )
 		elif url.find( 'jd.com' ) > -1:
 			return self.parseJd( response )
 		elif url.find( 'feifei.com' ) > -1:
 			return self.parseFeifei( response )
-		else:
-			return
+
+
+	# def parse(self, response):
+	# 	""" Main parse function
+	# 	"""
+	# 	url = response.url
+
+	# 	if url.find( 'tmall.com' ) > -1:
+	# 		return self.parseTmall( response )
+	# 	elif url.find( 'jd.com' ) > -1:
+	# 		return self.parseJd( response )
+	# 	elif url.find( 'feifei.com' ) > -1:
+	# 		return self.parseFeifei( response )
+	# 	else:
+	# 		return
 
 
 	######
@@ -55,11 +88,27 @@ class MonitorSpider(RedisSpider):
 	def parseTmall(self, response):
 		""" Tmall parser
 		"""
+
+		def _referer():
+			referer = response.request.headers.get('Referer')
+			if referer and referer.find('list.tmall.com') > -1:
+				rto = 'http://list.tmall.com/search_product.htm?'
+				resultC = re.compile('[\?&]cat=(\d+)').search( referer )
+				if resultC: rto += 'cat=%s' % resultC.group(1)
+				resultQ = re.compile('[\?&]q=([^&]+)').search( referer )
+				if resultQ: 
+					if resultC: rto += '&q=%s' % resultQ.group(1)
+					else: rto += 'q=%s' % resultQ.group(1)
+				if not 'http://list.tmall.com/search_product.htm?' == rto:
+					return rto
+			return ''
+
 		sel = Selector(response)
 		item = ProductItem()  
 
 		item['source']  = 'tmall'       
-		item['name']    = self.get_product_name( sel )    
+		item['name']    = self.get_product_name( sel )  
+		item['start_url'] = _referer()
 
 		try:
 			# 获取TShop字符串，并对TShop字符串进行JSON标准化处理

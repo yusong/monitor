@@ -30,3 +30,5 @@ class ProductItem(Item):
     tm_moonSellCount = Field()
     date		= Field()
     history		= Field()
+    # start_url
+    start_url   = Field()

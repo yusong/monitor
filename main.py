@@ -28,7 +28,7 @@ def start( config={} ):
 	scheduler.add_jobstore(store, 'mongo') 
 
 	# add cron jobs
-	scheduler.add_cron_job(monitor_cron_job, hour='0-23', minute="0,30", jobstore='mongo')
+	scheduler.add_cron_job(monitor_cron_job, hour='0-23', minute="0,19,30", jobstore='mongo')
 	# test cron job
 	# scheduler.add_cron_job(test_cron_job, hour='0-23', minute="0-59", second='0', jobstore='mongo')
 

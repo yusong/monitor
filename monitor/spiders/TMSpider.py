@@ -18,12 +18,14 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 
-class TMSpider(RedisMixin, CrawlSpider):
+class TMSpider(CrawlSpider):
 
     name = "tm"
     redis_key = 'tm:start_urls'
     allowed_domains = ["tmall.com", "taobao.com"]
-    start_urls = []
+    start_urls = [
+        'http://list.tmall.com/search_product.htm?cat=50916011',
+    ]
 
     cat_map = {}
 
@@ -40,36 +42,6 @@ class TMSpider(RedisMixin, CrawlSpider):
         #         follow=True ),
     
     )
-
-
-    def __init__(self, *args, **kwargs):
-
-        super(TMSpider, self).__init__(*args, **kwargs)
-
-        self.action_type = kwargs.get('action_type', 'DEF_CALL')
-
-        if self.action_type == 'BUSINESS_CALL':
-            self.export_file_name = kwargs.get('export_file_name')
-
-        if kwargs.get('start_urls'):
-            self.start_urls = self.explain_urls( kwargs.get('start_urls') )
-            # self.start_urls = [ kwargs.get('start_urls') ]
-
-
-    def explain_urls(self, text):
-        # remove header '####'
-        text = text[4:]
-        rto = []
-        for group in text.split('####'):
-            t = group.split('____')
-            self.cat_map[t[1]] = unquote( t[0] ).decode('utf8')
-            rto.append( t[1] )
-        return rto
-
-
-    def set_crawler(self, crawler):
-        CrawlSpider.set_crawler(self, crawler)
-        RedisMixin.setup_redis(self)
 
 
     def parse_item(self, response):

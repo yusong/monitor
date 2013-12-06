@@ -5,11 +5,27 @@ from datetime import datetime
 from twisted.internet.threads import deferToThread
 
 
-class ExamplePipeline(object):
-    def process_item(self, item, spider):
-        item["crawled"] = datetime.utcnow()
-        item["spider"] = spider.name
-        return item
+class TestMongoPipeline(object):
+
+	def open_spider(self, spider):
+
+		mongo_host = '127.0.0.1'
+		mongo_port = 27017
+		mongo_db = 'test'
+		result_collection = 'result'
+
+		self.c 			= Connection(mongo_host, mongo_port)
+		self.db 		= self.c[mongo_db]
+		self.collection = self.db[result_collection]
+
+	def close_spider(self, spider):
+
+		del self.c, self.db, self.collection
+
+	def process_item(self, item, spider):
+	    
+		self.collection.save( dict(item) )
+		return item
 
 
 class MongoPipeline(object):
@@ -31,6 +47,7 @@ class MongoPipeline(object):
 		redis_port = 6379
 
 		self.redis_map  = 'monitorspider:url'
+		self.extra_map	= 'monitorspider:extra'
 		self.r 			= redis.Redis(host=redis_host, port=redis_port)
 
 	
@@ -50,7 +67,11 @@ class MongoPipeline(object):
 		name = item.get('name')
 		price = item.get('price')
 		source = item.get('source')
-		sku = self.r.hget(self.redis_map, url)
+		extra = False # check item from urls or extra
+		sku = self.r.hget(self.redis_map, url) 
+		if not sku:
+			extra = True
+			sku = self.r.hget(self.extra_map, url)
 
 		result_item = self.collection.find_one({'sku': sku})
 
@@ -59,32 +80,46 @@ class MongoPipeline(object):
 			rto = {
 				'sku' : sku,
 				'date' : datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-				'priceList': {
-					source : {
+			}
+
+			if source == 'feifei':
+				rto['category'] = item.get('category')
+
+			if not extra:
+				# item not from extras
+				rto['priceList'] = { source : { 'url' : url, 'name' : name, 'price' : price } }	
+			else:
+				# item from extras
+				rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price } ]
+
+			self.collection.save( rto )
+			
+		else:
+			# has record
+			date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+			if not extra:
+				# item not from extras
+				priceList = result_item.get('priceList', {})
+				if price:
+					# sometimes tmall item with no price
+					priceList[ source ] = {
 						'url' : url,
 						'name' : name,
 						'price' : price
 					}
-				}		
-			}
-			if source == 'feifei':
-				rto['category'] = item.get('category')
+					self.collection.update( {'sku':sku}, {'$set': {'date': date, 'priceList': priceList}} )
 
-			self.collection.save( rto )
-
-		else:
-			# has record
-			date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-			priceList = result_item['priceList']
-
-			if price:
-				# sometimes tmall item with no price
-				priceList[ source ] = {
-					'url' : url,
-					'name' : name,
-					'price' : price
-				}
-
-				self.collection.update( {'sku':sku}, {'$set': {'date': date, 'priceList': priceList}} )
+			else:
+				# item from extras
+				extraList = result_item.get('extraList', [])
+				if price:
+					# sometimes tmall item with no price
+					extraList.append({
+						'url' : url,
+						'name' : name,
+						'price' : price
+					})
+					self.collection.update( {'sku':sku}, {'$set': {'date': date, 'extraList': extraList}} )
 
 		return item

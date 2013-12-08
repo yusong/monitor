@@ -71,7 +71,8 @@ class MongoPipeline(object):
 		sku = self.r.hget(self.redis_map, url) 
 		if not sku:
 			extra = True
-			sku = self.r.hget(self.extra_map, url)
+			start_url = item.get('start_url')
+			sku = self.r.hget(self.extra_map, start_url)
 
 		result_item = self.collection.find_one({'sku': sku})
 

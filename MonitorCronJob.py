@@ -110,7 +110,7 @@ class MonitorCronJob(object):
 					to_redis( url )
 					print "[log] List %s to %s" % (url, self.ulist)
 				for extra in extras:
-					self.r.hset( self.rmap, extra, sku )
+					self.r.hset( self.emap, extra, sku )
 					to_redis( extra )
 					print "[log] List %s to %s" % (extra, self.ulist)
 

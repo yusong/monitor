@@ -52,6 +52,11 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 	)
 
 
+	def set_crawler(self, crawler):
+		CrawlSpider.set_crawler(self, crawler)
+		RedisMixin.setup_redis(self)
+
+
 	def parse_start_url(self, response):
 		""" Main parse function
 		"""

@@ -19,6 +19,7 @@ class ProductItem(Item):
     brand 		= Field()
     category	= Field()
     attr		= Field()
+    tm_store    = Field()
     # unfixed
     url			= Field()
     img 		= Field()

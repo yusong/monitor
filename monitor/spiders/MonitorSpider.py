@@ -106,6 +106,8 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 					else: rto += 'q=%s' % resultQ.group(1)
 				if not 'http://list.tmall.com/search_product.htm?' == rto:
 					return rto
+			elif not referer and response.url.find('detail.tmall.com') > -1:
+				return response.url
 			return ''
 
 		sel = Selector(response)
@@ -114,6 +116,7 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 		item['source']  = 'tmall'       
 		item['name']    = self.get_product_name( sel )  
 		item['start_url'] = _referer()
+		item['tm_store'] = ''.join( sel.xpath('//input[@name="seller_nickname"]/@value').extract() )
 
 		try:
 			# 获取TShop字符串，并对TShop字符串进行JSON标准化处理

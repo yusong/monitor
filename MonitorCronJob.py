@@ -105,14 +105,16 @@ class MonitorCronJob(object):
 			urls = i.get('urls', None)
 			extras = i.get('extras', None)
 			if sku:
-				for url in urls:
-					self.r.hset( self.rmap, url, sku ) # hset(hash, key, value)
-					to_redis( url )
-					print "[log] List %s to %s" % (url, self.ulist)
-				for extra in extras:
-					self.r.hset( self.emap, extra, sku )
-					to_redis( extra )
-					print "[log] List %s to %s" % (extra, self.ulist)
+				if urls:
+					for url in urls:
+						self.r.hset( self.rmap, url, sku ) # hset(hash, key, value)
+						to_redis( url )
+						print "[log] List %s to %s" % (url, self.ulist)
+				if extras:
+					for extra in extras:
+						self.r.hset( self.emap, extra, sku )
+						to_redis( extra )
+						print "[log] List %s to %s" % (extra, self.ulist)
 
 
 	def test(self):

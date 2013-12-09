@@ -67,6 +67,10 @@ class MongoPipeline(object):
 		name = item.get('name')
 		price = item.get('price')
 		source = item.get('source')
+		tm_store = item.get('tm_store')
+		tm_moonSellCount = item.get('tm_moonSellCount')
+		category = item.get('category')
+		itemId = item.get('itemId')
 		extra = False # check item from urls or extra
 		sku = self.r.hget(self.redis_map, url) 
 		if not sku:
@@ -84,14 +88,26 @@ class MongoPipeline(object):
 			}
 
 			if source == 'feifei':
-				rto['category'] = item.get('category')
+				rto['category'] = category
 
 			if not extra:
 				# item not from extras
-				rto['priceList'] = { source : { 'url' : url, 'name' : name, 'price' : price } }	
+				if source == 'tmall':
+					rto['priceList'] = { source : { 'url' : url, 'name' : name, 'price' : price, 'tm_store' : tm_store, 'tm_moonSellCount' : tm_moonSellCount } }
+				else:
+					rto['priceList'] = { source : { 'url' : url, 'name' : name, 'price' : price } }
 			else:
 				# item from extras
-				rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price } ]
+				if source == 'tmall':
+					rto['extraList'] = {
+						itemId : { 'url' : url, 'name': name, 'price': price, 'tm_store' : tm_store, 'tm_moonSellCount' : tm_moonSellCount }
+					}
+					# rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price, 'tm_store' : tm_store, 'tm_moonSellCount' : tm_moonSellCount } ]
+				else:
+					rto['extraList'] = {
+						name : { 'url' : url, 'name': name, 'price': price }
+					}
+					# rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price } ]
 
 			self.collection.save( rto )
 			
@@ -109,18 +125,36 @@ class MongoPipeline(object):
 						'name' : name,
 						'price' : price
 					}
-					self.collection.update( {'sku':sku}, {'$set': {'date': date, 'priceList': priceList}} )
+					if source == 'tmall':
+						priceList[ source ]['tm_moonSellCount'] = tm_moonSellCount
+						priceList[ source ]['tm_store'] = tm_store
+					if source == 'feifei':
+						self.collection.update( {'sku':sku}, {'$set': {'date': date, 'category': category, 'priceList': priceList}} )
+					else:
+						self.collection.update( {'sku':sku}, {'$set': {'date': date, 'priceList': priceList}} )
 
 			else:
 				# item from extras
-				extraList = result_item.get('extraList', [])
+				extraList = result_item.get('extraList', {})
 				if price:
 					# sometimes tmall item with no price
-					extraList.append({
+					# extraList.append({
+					# 	'url' : url,
+					# 	'name' : name,
+					# 	'price' : price,
+					# 	'tm_moonSellCount' : tm_moonSellCount,
+					# 	'tm_store' : tm_store
+					# })
+					extraList[ itemId ] = {
 						'url' : url,
 						'name' : name,
-						'price' : price
-					})
-					self.collection.update( {'sku':sku}, {'$set': {'date': date, 'extraList': extraList}} )
+						'price' : price,
+						'tm_moonSellCount' : tm_moonSellCount,
+						'tm_store' : tm_store
+					}
+					if source == 'feifei':
+						self.collection.update( {'sku':sku}, {'$set': {'date': date, 'category': category, 'extraList': extraList}} )
+					else:
+						self.collection.update( {'sku':sku}, {'$set': {'date': date, 'extraList': extraList}} )
 
 		return item

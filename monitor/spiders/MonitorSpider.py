@@ -23,17 +23,12 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 	name = "monitorspider"
 	redis_key = 'monitorspider:start_urls'
 
-	allowed_domains = [ "tmall.com", "taobao.com",
-						"jd.com", "3.cn",
-						"feifei.com" ]
+	allowed_domains = [ "tmall.com", "taobao.com",		# tmall
+						"jd.com", "3.cn",				# jd
+						"feifei.com",					# feifei
+						"yhd.com", "yihaodian.com" ]	# yihaodian
 
-	start_urls = [
-		# 'http://item.jd.com/567572.html',
-		# 'http://detail.tmall.com/item.htm?id=12830475888',
-		# 'http://list.tmall.com/search_product.htm?cat=50916011',
-		# 'http://item.feifei.com/A3706268.html',
-		# 'http://list.tmall.com//search_product.htm?q=%C3%E6%B0%FC%BB%FA',
-	]
+	start_urls = []
 
 	pipeline = [ 'MongoPipeline' ]
 
@@ -53,6 +48,7 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 
 
 	def set_crawler(self, crawler):
+
 		CrawlSpider.set_crawler(self, crawler)
 		RedisMixin.setup_redis(self)
 
@@ -68,21 +64,16 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 			return self.parseJd( response )
 		elif url.find( 'feifei.com' ) > -1:
 			return self.parseFeifei( response )
+		elif url.find( 'yhd.com' ) > -1:
+			return self.parseYhd( response )
 
 
-	# def parse(self, response):
-	# 	""" Main parse function
-	# 	"""
-	# 	url = response.url
+	def make_requests_from_url(self, url):
 
-	# 	if url.find( 'tmall.com' ) > -1:
-	# 		return self.parseTmall( response )
-	# 	elif url.find( 'jd.com' ) > -1:
-	# 		return self.parseJd( response )
-	# 	elif url.find( 'feifei.com' ) > -1:
-	# 		return self.parseFeifei( response )
-	# 	else:
-	# 		return
+		if url.find( 'yhd.com' ) > -1:
+			return Request(url, dont_filter=True, cookies={'provinceId':20})
+		else:
+			return Request(url, dont_filter=True)
 
 
 	######
@@ -116,7 +107,8 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 		item['source']  = 'tmall'       
 		item['name']    = self.get_product_name( sel )  
 		item['start_url'] = _referer()
-		item['tm_store'] = ''.join( sel.xpath('//input[@name="seller_nickname"]/@value').extract() )
+		store = ''.join( sel.xpath('//input[@name="seller_nickname"]/@value').extract() )
+		item['tm_store'] = '[%s] %s' % (store[-3:], store) if len(store) > 3 else store
 
 		try:
 			# 获取TShop字符串，并对TShop字符串进行JSON标准化处理
@@ -268,7 +260,7 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 
 	######
 	#
-	# Tmall parser
+	# Feifei parser
 	#	
 
 	def parseFeifei(self, response):
@@ -284,4 +276,46 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 		item['price'] 	= float(price[1:])
 		item['category']= '|'.join( sel.xpath("//ul[@class='np-crumbs']//a/text()").extract() )
 
+		return item
+
+
+	######
+	#
+	# Yhd parser
+	#	
+
+	def parseYhd(self, response):
+		""" Yihaodian parser
+		"""
+		sel = Selector(response)
+		item = ProductItem()
+
+		item['source'] = 'yhd'
+		item['name'] = sel.xpath("//font[@id='productMainName']/text()").extract()[0]
+		item['url'] = response.url
+
+		# get pmId
+		regex = re.compile('item\/(\d+)')
+		result = regex.search( response.url )
+		pmId = result.group(1) if result else 0
+	
+		yield Request(  'http://e.yhd.com/front-pe/queryNumsByPm.do?pmInfoId=%s' % pmId,  
+		                meta={'item': item, 'pmId': pmId}, 
+		                callback=self.parse_yhd_comment )
+
+		
+	def parse_yhd_comment(self, response):
+		item = response.meta['item']
+		pmId = response.meta['pmId']
+		rto = json.loads( response.body )
+		item['comment'] = rto.get('experienceNum', -1)
+		yield Request(  'http://busystock.i.yihaodian.com/restful/detail?mcsite=1&provinceId=20&pmId=%s' % pmId,  
+		                meta={'item': item}, 
+		                callback=self.parse_yhd_price )
+
+			
+	def parse_yhd_price(self, response):
+		item = response.meta['item']
+		rto = json.loads( response.body )
+		item['price'] = rto.get('currentPrice', -1)
 		return item

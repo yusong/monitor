@@ -26,7 +26,9 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 	allowed_domains = [ "tmall.com", "taobao.com",		# tmall
 						"jd.com", "3.cn",				# jd
 						"feifei.com",					# feifei
-						"yhd.com", "yihaodian.com" ]	# yihaodian
+						"yhd.com", "yihaodian.com",		# yihaodian
+						"yixun.com",					# yixun
+						"amazon.cn" ]					# amazon		
 
 	start_urls = []
 
@@ -66,12 +68,18 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 			return self.parseFeifei( response )
 		elif url.find( 'yhd.com' ) > -1:
 			return self.parseYhd( response )
+		elif url.find( 'yixun.com' ) > -1:
+			return self.parseYixun( response )	
+		elif url.find( 'amazon.cn' ) > -1:
+			return self.parseAmazon( response )
 
 
 	def make_requests_from_url(self, url):
 
 		if url.find( 'yhd.com' ) > -1:
 			return Request(url, dont_filter=True, cookies={'provinceId':20})
+		elif url.find( 'yixun.com' ) > -1:
+			return Request(url, dont_filter=True, cookies={'loc':'6_1001_440000_440100_440106_0', 'wsid':'1001'})
 		else:
 			return Request(url, dont_filter=True)
 
@@ -318,4 +326,46 @@ class MonitorSpider(RedisMixin, CrawlSpider):
 		item = response.meta['item']
 		rto = json.loads( response.body )
 		item['price'] = rto.get('currentPrice', -1)
+		return item
+
+
+	######
+	#
+	# Yixun parser
+	#	
+
+	def parseYixun(self, response):
+		""" Yixun parser
+		"""
+		sel = Selector(response)
+		item = ProductItem()
+
+		item['source'] = 'yixun'
+		item['name'] = sel.xpath("//div[@class='xbase']//h1[@class='xname']/text()").extract()[0]
+		item['url'] = response.url
+
+		price = ''.join( sel.xpath("//div[@class='xbase']//span[@itemprop='price']/text()").extract() )
+		lowPrice = ''.join( sel.xpath("//div[@class='xbase']//span[@itemprop='lowPrice']/text()").extract() )
+		item['price'] = price or lowPrice
+	
+		return item
+
+
+	######
+	#
+	# Amazon parser
+	#	
+
+	def parseAmazon(self, response):
+		""" Amazon parser
+		"""
+		sel = Selector(response)
+		item = ProductItem()
+
+		item['source'] = 'amazon'
+		item['name'] = ''.join( sel.xpath('//span[@id="btAsinTitle"]/span/text()').extract() ).strip()
+		item['url'] = response.url
+		price = ''.join( sel.xpath('//b[@class="priceLarge"]/text()').extract() )
+		item['price'] = price[2:] if len(price) > 2 else ''
+	
 		return item

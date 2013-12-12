@@ -102,12 +102,10 @@ class MongoPipeline(object):
 					rto['extraList'] = {
 						itemId : { 'url' : url, 'name': name, 'price': price, 'tm_store' : tm_store, 'tm_moonSellCount' : tm_moonSellCount }
 					}
-					# rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price, 'tm_store' : tm_store, 'tm_moonSellCount' : tm_moonSellCount } ]
 				else:
 					rto['extraList'] = {
 						name : { 'url' : url, 'name': name, 'price': price }
 					}
-					# rto['extraList'] = [ { 'url' : url, 'name': name, 'price': price } ]
 
 			self.collection.save( rto )
 			
@@ -137,14 +135,6 @@ class MongoPipeline(object):
 				# item from extras
 				extraList = result_item.get('extraList', {})
 				if price:
-					# sometimes tmall item with no price
-					# extraList.append({
-					# 	'url' : url,
-					# 	'name' : name,
-					# 	'price' : price,
-					# 	'tm_moonSellCount' : tm_moonSellCount,
-					# 	'tm_store' : tm_store
-					# })
 					extraList[ itemId ] = {
 						'url' : url,
 						'name' : name,
